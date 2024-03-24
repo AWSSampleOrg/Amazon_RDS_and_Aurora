@@ -1,0 +1,20 @@
+{
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true
+  },
+  "eslint.lintTask.enable": true,
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "npm.packageManager": "yarn",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "[typescript][typescriptreact][javascript][javascriptreact][json][graphql][vue][markdown][html]": {
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit"
+    }
+  },
+  "cSpell.words": ["aarch", "sqlplus", "instantclient"]
+}
