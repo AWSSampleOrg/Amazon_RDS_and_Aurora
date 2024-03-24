@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "RDS (PostgreSQL) Stack"
+
+# -------------------------------------
+# Metadata
+# -------------------------------------
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Project Configuration"
+        Parameters:
+          - ProjectPrefix
+      - Label:
+          default: "RDS (PostgreSQL) Configuration"
+        Parameters:
+          - RdsDbName
+          - RdsDbSecurityGroupID
+
+# -------------------------------------
+# Parameters
+# -------------------------------------
+Parameters:
+  ProjectPrefix:
+    Type: String
+    Default: ""
+  PostgreSQLMajorVersion:
+    Type: String
+    Default: 16
+    AllowedValues: [15, 16, 17]
+  PostgreSQLMinorVersion:
+    Type: String
+    Default: 6
+  VpcId:
+    Type: String
+  RDSPrivateSubnetA:
+    Type: String
+  RDSPrivateSubnetC:
+    Type: String
+  TimeZone:
+    Type: String
+    Default: America/New_York
+
+# -------------------------------------
+# Resources
+# -------------------------------------
+Resources:
+  RdsDbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${ProjectPrefix}rds-sg
+      GroupDescription: "Security Group For RDS PostgreSQL"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - CidrIp: "0.0.0.0/0"
+          Description: This is for PostgreSQL
+          FromPort: 5432
+          IpProtocol: tcp
+          ToPort: 5432
+
+  # -------------------------------------
+  # IAM Role
+  # -------------------------------------
+  RDSMonitoringRole:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${ProjectPrefix}RDSMonitoringRole
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: monitoring.rds.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole
+
+  # -------------------------------------
+  # DB SubnetGroup
+  # -------------------------------------
+  RdsDbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub ${ProjectPrefix}rds-sbng
+      DBSubnetGroupDescription: !Sub ${ProjectPrefix}rds-sbng
+      SubnetIds:
+        - !Ref RDSPrivateSubnetA
+        - !Ref RDSPrivateSubnetC
+
+  # -------------------------------------
+  # DB ParameterGroup
+  # -------------------------------------
+  RdsDbParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Sub ${ProjectPrefix}rds-pg
+      Family: !Sub postgres${PostgreSQLMajorVersion}
+      Parameters:
+        log_duration: 1
+        log_min_duration_statement: 10000
+        log_statement: all
+        timezone: !Ref TimeZone
+
+  # -------------------------------------
+  # DB Instance
+  # -------------------------------------
+  RdsDbInstance:
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 35
+      CopyTagsToSnapshot: true
+      DBInstanceClass: db.t3.small
+      DBInstanceIdentifier: !Sub ${ProjectPrefix}rds
+      DBName: postgres
+      DBParameterGroupName: !Ref RdsDbParameterGroup
+      DBSubnetGroupName: !Ref RdsDbSubnetGroup
+      DeletionProtection: false
+      EnableCloudwatchLogsExports: [postgresql]
+      EnablePerformanceInsights: true
+      Engine: postgres
+      EngineVersion: !Sub ${PostgreSQLMajorVersion}.${PostgreSQLMinorVersion}
+      MasterUsername: postgres
+      MasterUserPassword: postgres
+      MultiAZ: true
+      MonitoringInterval: 60
+      MonitoringRoleArn: !GetAtt RDSMonitoringRole.Arn
+      PreferredMaintenanceWindow: sun:20:00-sun:20:30
+      PubliclyAccessible: false
+      PreferredBackupWindow: 19:00-19:30
+      StorageEncrypted: true
+      StorageType: gp3
+      VPCSecurityGroups:
+        - !Ref RdsDbSecurityGroup
